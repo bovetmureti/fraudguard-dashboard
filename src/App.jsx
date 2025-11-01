@@ -56,73 +56,57 @@ const FraudGuardDashboard = () => {
     });
   };
 
-  // Analyze claim with Claude API
   const analyzeClaim = async (claim) => {
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          messages: [
-            {
-              role: "user",
-              content: `Analyze this insurance claim for fraud indicators:
-Claim ID: ${claim.id}
-Product Type: ${claim.productType}
-Claim Amount: KES ${claim.claimAmount.toLocaleString()}
-Location: ${claim.location}
-Date: ${claim.date}
-Current Risk Score: ${claim.riskScore}/100
-Current Risk Level: ${claim.riskLevel}
-Description: ${claim.description}
-Provide a detailed fraud risk assessment including:
-1. Key fraud indicators identified
-2. Specific red flags for this claim type
-3. Recommended investigation actions
-4. Confidence level in the assessment
-Format your response as JSON with this structure:
-{
-  "riskAssessment": "HIGH/MEDIUM/LOW",
-  "confidenceLevel": 0-100,
-  "fraudIndicators": ["indicator1", "indicator2"],
-  "redFlags": ["flag1", "flag2"],
-  "recommendedActions": ["action1", "action2"],
-  "summary": "brief summary"
-}
-IMPORTANT: Respond ONLY with valid JSON. Do not include any text outside the JSON structure.`
-            }
-          ]
-        })
-      });
-      const data = await response.json();
-      let responseText = data.content[0].text;
-     
-      // Strip markdown code blocks if present
-      responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-     
-      const analysis = JSON.parse(responseText);
-      setAnalysisResult(analysis);
-    } catch (error) {
-      console.error("Analysis error:", error);
-      // Fallback mock analysis
-      setAnalysisResult({
-        riskAssessment: claim.riskLevel,
-        confidenceLevel: 85,
-        fraudIndicators: ["High claim amount", "Early claim submission", "Insufficient documentation"],
-        redFlags: ["Claim amount exceeds policy average", "Location has high fraud rate"],
-        recommendedActions: ["Request additional documentation", "Conduct field investigation", "Verify witness statements"],
-        summary: `This ${claim.productType} claim shows ${claim.riskLevel.toLowerCase()} fraud risk with several suspicious patterns requiring investigation.`
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  setIsAnalyzing(true);
+  setAnalysisResult(null);
+  try {
+    // Map frontend claim to backend-compatible payload (snake_case, fill missing fields)
+    const payload = {
+      claim_id: claim.id,
+      policy_id: claim.policyId,
+      product_type: claim.productType,
+      claim_amount: claim.claimAmount,
+      policy_premium: Math.floor(Math.random() * 100000 + 10000),  // Mock premium (10k-110k KES)
+      claim_date: `${claim.date}T00:00:00`,  // Convert to ISO (assume UTC)
+      policy_start_date: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),  // Mock: 0-1 year ago
+      claimant_age: Math.floor(Math.random() * 57 + 18),  // Mock: 18-75
+      location: claim.location,
+      previous_claims_count: Math.floor(Math.random() * 5),  // Mock: 0-4
+      claim_processing_time: Math.floor(Math.random() * 30 + 1),  // Mock: 1-30 days
+      documents_submitted: Math.floor(Math.random() * 7 + 1),  // Mock: 1-7
+      witness_count: Math.floor(Math.random() * 5),  // Mock: 0-4
+      hospital_name: claim.productType === 'Medical' ? `Hospital_${Math.floor(Math.random() * 50 + 1)}` : 'N/A',
+      police_report: claim.productType === 'Motor' ? Math.random() > 0.5 : false,  // Mock: Random for Motor, else false
+      payment_method: ['M-Pesa', 'Bank Transfer', 'Cheque'][Math.floor(Math.random() * 3)],  // Mock random
+      claim_description: claim.description
+    };
+
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`Backend error: ${response.statusText}`);
+    const analysis = await response.json();
+
+    setAnalysisResult(analysis);
+  } catch (error) {
+    console.error("Analysis error:", error);
+    // Your existing fallback mock
+    setAnalysisResult({
+      riskAssessment: claim.riskLevel,
+      confidenceLevel: 85,
+      fraudIndicators: ["High claim amount", "Early claim submission", "Insufficient documentation"],
+      redFlags: ["Claim amount exceeds policy average", "Location has high fraud rate"],
+      recommendedActions: ["Request additional documentation", "Conduct field investigation", "Verify witness statements"],
+      summary: `This ${claim.productType} claim shows ${claim.riskLevel.toLowerCase()} fraud risk with several suspicious patterns requiring investigation.`
+    });
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
 
   // Calculate statistics
   const stats = {

@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+plotly
+requests
+tensorflow  # Optional, for neural network
+fastapi
+uvicorn[standard]
+pydantic  # For data models
