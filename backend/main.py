@@ -30,6 +30,7 @@ import requests
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
+import traceback
 
 # Machine Learning
 from sklearn.ensemble import RandomForestClassifier, IsolationForest, GradientBoostingClassifier
@@ -828,18 +829,25 @@ app.add_middleware(
 # ... (your existing init code: data_generator, feature_engine, ml_models, claude_api, fraudguard)
 
 @app.post("/api/analyze")
-def analyze_claim(claim: ClaimData):
+async def analyze_claim(claim: ClaimData):
     try:
         claim_dict = claim.dict()
-        # Convert dates to datetime if needed (your code expects datetime)
-        claim_dict['claim_date'] = datetime.fromisoformat(claim_dict['claim_date'])
-        claim_dict['policy_start_date'] = datetime.fromisoformat(claim_dict['policy_start_date'])
-        
+        claim_dict["claim_date"] = datetime.fromisoformat(claim_dict["claim_date"])
+        claim_dict["policy_start_date"] = datetime.fromisoformat(claim_dict["policy_start_date"])
         result = fraudguard.predict_fraud(claim_dict)
-        return result
+        mapped = {
+            "riskAssessment": result["risk_level"],
+            "confidenceLevel": round(result["hybrid_risk_score"]),
+            "fraudIndicators": result["red_flags"],
+            "redFlags": result["red_flags"],
+            "recommendedActions": [result["recommendation"]],
+            "summary": f"Hybrid risk score: {result['hybrid_risk_score']:.1f}/100 – {result['recommendation']}"
+        }
+        return mapped
     except Exception as e:
+        traceback.print_exc()  # Print full error to terminal
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
